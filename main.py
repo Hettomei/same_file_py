@@ -4,6 +4,7 @@ import os
 import sys
 
 import glob
+from pprint import pprint
 
 
 def is_db_present(cur):
@@ -30,6 +31,7 @@ CREATE TABLE files(
 
         cur.execute("CREATE INDEX idx_files_sha256 ON files (sha256)")
 
+
 # Sauvegarder tous les hash en memoire pour un acces plus rapide
 # un hash de 64 bytes, x 800 k fichiers = 50 MO de mémoire dispo
 # 64*800000/(1024*1024)
@@ -45,10 +47,18 @@ def main(arg_path):
     ) as con:
         cur = con.cursor()
         initialize_db(cur)
+        fill_database(cur, arg_path)
 
-        res = cur.execute("SELECT * FROM files")
-        print(res.fetchall())
+        res = cur.execute("SELECT * FROM files ORDER BY size DESC LIMIT 100")
+        pprint(res.fetchall())
 
+        print("-----------------")
+
+        res = cur.execute("SELECT * FROM files ORDER BY size ASC LIMIT 100")
+        pprint(res.fetchall())
+
+
+def fill_database(cur, arg_path):
     for path in glob.iglob(os.path.join(arg_path, "**", "*"), recursive=True):
         print(path)
         if os.path.isfile(path):
@@ -59,17 +69,11 @@ def main(arg_path):
                 print(hexdigest)
                 print("--")
 
-                # cur.execute(
-                #     """
-                #     INSERT INTO files VALUES
-                #         (null, ?, ?, ?, sha256)
-                # """
-                # )
-                # cur.execute(
-                #     "insert into files(id, path, name, size, sha256) values (?, ?, ?, ?, ?)",
-                #     (None, now),
-                # )
-                # con.commit()
+                cur.execute(
+                    "insert into files(id, path, name, size, sha256) values (?, ?, ?, ?, ?)",
+                    (None, path, os.path.basename(path), size_bytes, hexdigest),
+                )
+                con.commit()
             # print(res.fetchone())
 
 
