@@ -60,20 +60,22 @@ def main(arg_path):
 
 def fill_database(cur, arg_path):
     for path in glob.iglob(os.path.join(arg_path, "**", "*"), recursive=True):
-        print(path)
         if os.path.isfile(path):
+            print(path)
             size_bytes = os.stat(path).st_size
             print(size_bytes, "bytes")
             with open(path, "rb") as f:
                 hexdigest = hashlib.file_digest(f, "sha256").hexdigest()
                 print(hexdigest)
-                print("--")
-
-                cur.execute(
+                try:
+                    cur.execute(
                     "insert into files(id, path, name, size, sha256) values (?, ?, ?, ?, ?)",
                     (None, path, os.path.basename(path), size_bytes, hexdigest),
                 )
-                con.commit()
+                    con.commit()
+                except sqlite3.IntegrityError:
+                    print("already in dtb")
+                print("--")
             # print(res.fetchone())
 
 
