@@ -47,18 +47,28 @@ def main(arg_path):
     ) as con:
         cur = con.cursor()
         initialize_db(cur)
-        fill_database(cur, arg_path)
+        # fill_database(con, cur, arg_path)
 
-        res = cur.execute("SELECT * FROM files ORDER BY size DESC LIMIT 100")
+        # res = cur.execute("SELECT * FROM files ORDER BY size DESC LIMIT 100")
+        # pprint(res.fetchall())
+
+        # print("-----------------")
+
+        # res = cur.execute("SELECT * FROM files ORDER BY size ASC LIMIT 100")
+        # pprint(res.fetchall())
+
+        # afiche que les doublon
+        res = cur.execute("""
+SELECT sha256, count(sha256) as count_sha256
+FROM files
+GROUP BY sha256
+HAVING count_sha256 > 1
+ORDER BY count_sha256 DESC
+""")
         pprint(res.fetchall())
 
-        print("-----------------")
 
-        res = cur.execute("SELECT * FROM files ORDER BY size ASC LIMIT 100")
-        pprint(res.fetchall())
-
-
-def fill_database(cur, arg_path):
+def fill_database(con, cur, arg_path):
     for path in glob.iglob(os.path.join(arg_path, "**", "*"), recursive=True):
         if os.path.isfile(path):
             print(path)
