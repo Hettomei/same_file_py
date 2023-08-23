@@ -81,12 +81,10 @@ FROM files
 GROUP BY sha256
 HAVING count_sha256 > 1
 ORDER BY count_sha256 DESC
-LIMIT 3
 """
     )
     # We extracted before the for ... so we free the cursor to do other SELECT
     all_duplicated_digest = [row[0] for row in res]
-    pprint(all_duplicated_digest)
     for digest in all_duplicated_digest:
         start_explain(cur, digest)
 
@@ -94,7 +92,7 @@ LIMIT 3
 def start_explain(cur, digest):
     res = cur.execute(
         """
-SELECT *
+SELECT id, path, name, size, sha256
 FROM files
 WHERE sha256 = ?
 ORDER BY path ASC
@@ -102,20 +100,18 @@ ORDER BY path ASC
         (digest,),
     )
 
-    for row in res:
-        print(row)
-    print("----")
+    for id, path, name, size, sha256 in res:
+        # print(row)
+        print(f"{size} Bytes, {path}")
 
 
 def fill_database(con, cur, args):
     for path in glob.iglob(os.path.join(args.root_path, "**", "*"), recursive=True):
         if os.path.isfile(path):
-            print(path)
             size_bytes = os.stat(path).st_size
-            print(size_bytes, "bytes")
             with open(path, "rb") as f:
+                _str = f"{size_bytes} Bytes, {path}"
                 hexdigest = hashlib.file_digest(f, "sha256").hexdigest()
-                print(hexdigest)
                 try:
                     cur.execute(
                         "insert into files(id, path, name, size, sha256) values (?, ?, ?, ?, ?)",
@@ -123,8 +119,8 @@ def fill_database(con, cur, args):
                     )
                     con.commit()
                 except sqlite3.IntegrityError:
-                    print("already in dtb")
-                print("--")
+                    _str += ", already in dtb"
+                print(_str)
 
 
 if __name__ == "__main__":
