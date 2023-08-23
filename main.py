@@ -23,6 +23,13 @@ def parse_args(sys_args):
         dest="same_files",
         action="store_true",
     )
+
+    parser.add_argument(
+        "--refresh-same-files",
+        help="Look at duplicated files in detabase. If file no more exist, remove from db",
+        dest="refresh_files",
+        action="store_true",
+    )
     return parser.parse_args(sys_args)
 
 
@@ -60,20 +67,27 @@ def main(args):
         if args.root_path:
             fill_database(con, cur, args)
 
+        if args.refresh_files:
+            refresh_same_files(cur)
+
         if args.same_files:
             show_same_files(cur)
 
 
-def show_same_files(cur):
-    # res = cur.execute("SELECT * FROM files ORDER BY size DESC LIMIT 100")
-    # pprint(res.fetchall())
+def refresh_same_files(cur):
+    for digest in extract_duplicated_digest(cur):
+        ids_to_delete = []
+        for _id, path, name, size, sha256 in get_same_digests(cur, digest):
+            if not os.path.isfile(path):
+                print(f"Inexistant: {size} Bytes, {path}")
+                ids_to_delete.append((_id,))
 
-    # print("-----------------")
+        if ids_to_delete:
+            cur.executemany("DELETE FROM files WHERE id = ?", ids_to_delete)
+            print(f"Delete {cur.rowcount} row")
 
-    # res = cur.execute("SELECT * FROM files ORDER BY size ASC LIMIT 100")
-    # pprint(res.fetchall())
-
-    # afiche que les doublon
+def extract_duplicated_digest(cur):
+    # Extrait uniquement les doublons
     res = cur.execute(
         """
 SELECT sha256, count(sha256) as count_sha256
@@ -84,13 +98,15 @@ ORDER BY count_sha256 DESC
 """
     )
     # We extracted before the for ... so we free the cursor to do other SELECT
-    all_duplicated_digest = [row[0] for row in res]
-    for digest in all_duplicated_digest:
+    return [row[0] for row in res]
+
+def show_same_files(cur):
+    for digest in extract_duplicated_digest(cur):
         start_explain(cur, digest)
 
 
-def start_explain(cur, digest):
-    res = cur.execute(
+def get_same_digests(cur, digest):
+    return cur.execute(
         """
 SELECT id, path, name, size, sha256
 FROM files
@@ -100,9 +116,12 @@ ORDER BY path ASC
         (digest,),
     )
 
-    for id, path, name, size, sha256 in res:
+def start_explain(cur, digest):
+    for id, path, name, size, sha256 in get_same_digests(cur, digest):
         # print(row)
         print(f"{size} Bytes, {path}")
+
+    print("--")
 
 
 def fill_database(con, cur, args):
